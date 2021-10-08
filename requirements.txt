@@ -1,0 +1,11 @@
+dearpygui
+numpy
+librosa
+tensorboard
+soundfile
+matplotlib
+tensorflow
+inflect
+scipy
+Unidecode
+pillow
