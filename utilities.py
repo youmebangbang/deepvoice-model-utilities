@@ -99,7 +99,6 @@ class Trainer():
         print("HifiGan training started!")
         dpg.set_value("shell_output_hifigan", "HifiGan training started. Check console for more information.")
 
-
     def stop_training_hifigan(self):
         print("\nStopping hifigan training... waiting for epoch to end...")
         with open("training_status.txt", 'w') as f:
@@ -113,9 +112,7 @@ class Trainer():
             if os.path.exists("hifi-gan/training_status.txt"):
                 f = open("hifi-gan/training_status.txt", 'w')
                 f.close()                                   
-            # os.chdir("../")
-
-        
+            # os.chdir("../")    
 
     def stop_training_tacotron2(self):
         pass
@@ -135,8 +132,6 @@ class Trainer():
         #     print("hifigan training has ended")
         #     dpg.set_value("shell_output_waveglow", "training stopped.")
 
-
-
 class Inferer():
     def __init__(self):
         self.taco_model_name = None
@@ -154,8 +149,8 @@ class Inferer():
        
         self.table_array = np.empty([0,2])
         with dpg.table(scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                            borders_outerV=True, parent="inference_tab", header_row=True, width=1100, height=400, tag="infer_table"):
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=700, parent="infer_table", label='TEXT')
+                            borders_outerV=True, parent="inference_tab", header_row=True, width=1300, height=400, tag="infer_table"):
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=900, parent="infer_table", label='TEXT')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='AUDIO FILE')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='OPTIONS')
     
@@ -163,8 +158,8 @@ class Inferer():
         # clear table
         dpg.delete_item("infer_table")
         with dpg.table(scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                            borders_outerV=True, parent="inference_tab", header_row=True, width=1100, height=400, tag="infer_table"):
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=700, parent="infer_table", label='TEXT')
+                            borders_outerV=True, parent="inference_tab", header_row=True, width=1300, height=400, tag="infer_table"):
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=900, parent="infer_table", label='TEXT')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='AUDIO FILE')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='OPTIONS')        
         l = len(self.table_array)
@@ -203,7 +198,6 @@ class Inferer():
         a = AudioSegment.from_file(result[0])    
         t_play = threading.Thread(target=self.play, args=(a,))
         t_play.start()      
-
 
     def callback_remove_entry(self, sender, app_data, user_data):
         self.stop()
@@ -314,7 +308,6 @@ class Inferer():
                     # self.file_count += 1
                 return result
 
-
 def callback_open_model_taco(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
@@ -345,7 +338,6 @@ def callback_open_project_checkpoint(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
     trainer.set_hifigan_checkpoint_name(path)
-
 
 def callback_run_inference(sender, app_data, user_data):
     if user_data == "single": 
@@ -418,14 +410,21 @@ def callback_export_infer_table(sender, data):
             f.write(dpg.get_value("input_text_" + str(i)))
             f.write('\n')
 
+def callback_status_window_control(sender, data):
+    if dpg.is_item_active("inference_tab"):
+        dpg.configure_item("infer_status_window", show=True)
+    elif dpg.is_item_active("train_hifigan_tab"):
+        dpg.configure_item("infer_status_window", show=False)
+
+    #hide other tab windows
+
 with dpg.window(tag='mainwindow', label="Model Utilites"):
    
     with dpg.tab_bar(tag="tab_bar_1"):        
-        with dpg.tab(tag="setup_tab", label=" Setup and Config "):
-            dpg.add_spacer(height=5)
-
             
         with dpg.tab(tag="inference_tab", label=" Run Inference "):
+
+
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_open_model_taco, tag="open_model_taco"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
@@ -444,6 +443,9 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_open_project_checkpoint, tag="open_project_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
+            with dpg.window(tag="infer_status_window", show=True, width=500, height=100, pos=(500,50), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):
+                dpg.add_text("Status...", )            
+
             dpg.add_spacer(height=5)
             dpg.add_text("Produce audio from nvidia tacotron2 model:")
             dpg.add_spacer(height=5)
@@ -457,7 +459,7 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                 dpg.add_button(label="Choose Waveglow model", tag="choose_model_waveglow", callback=lambda: dpg.show_item("open_model_waveglow"))
                 dpg.add_text("", tag="waveglow_model_status")                 
             dpg.add_spacer(height=5)   
-            dpg.add_text("Input text:")
+            dpg.add_text("Input single line text:")
             with dpg.group(horizontal=True):             
                 dpg.add_input_text(width=800, tag="text_input")
                 dpg.add_button(label="Run inference", tag="run_inference_single", callback=callback_run_inference, user_data="single")
@@ -506,12 +508,18 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
 inferer = Inferer()
 trainer = Trainer()
    
+
+with dpg.item_handler_registry(tag="status_window_handler"):
+    dpg.add_item_active_handler(callback=callback_status_window_control)
+dpg.bind_item_handler_registry("train_hifigan_tab", "status_window_handler")
+dpg.bind_item_handler_registry("inference_tab", "status_window_handler")
+
 with dpg.font_registry():
     dpg.add_font("CheyenneSans-Light.otf", 20)
 
 dpg.bind_item_font("tab_bar_1", "CheyenneSans-Light.otf")
 
-dpg.create_viewport(title="Deep Voice Model Utilities v1.0 by YouMeBangBang", width=1200, height=800)
+dpg.create_viewport(title="Deep Voice Model Utilities v1.0 by YouMeBangBang", width=1400, height=800)
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
