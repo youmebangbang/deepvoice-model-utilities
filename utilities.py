@@ -134,12 +134,8 @@ class Trainer():
 
 class Inferer():
     def __init__(self):
-        self.taco_model_name = None
         self.taco_model_path = None
-        self.waveglow_model_name = None
-        self.waveglow_model_path = None
-        self.hifigan_model_name = None
-        self.hifigan_model_path = None
+        self.waveglow_hifigan_model_path = None
         self.taco_model = None
         self.waveglow_model = None
         self.hifigan_model = None
@@ -148,8 +144,8 @@ class Inferer():
         self.file_count = 0
        
         self.table_array = np.empty([0,2])
-        with dpg.table(scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                            borders_outerV=True, parent="inference_tab", header_row=True, width=1300, height=400, tag="infer_table"):
+        with dpg.table(pos=(0, 0), scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
+                            borders_outerV=True, parent="infer_table_window", header_row=True, width=1300, height=400, tag="infer_table"):
             dpg.add_table_column(width_fixed=True, init_width_or_weight=900, parent="infer_table", label='TEXT')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='AUDIO FILE')
             dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='OPTIONS')
@@ -157,16 +153,19 @@ class Inferer():
     def show_table(self):
         # clear table
         dpg.delete_item("infer_table")
-        with dpg.table(scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
-                            borders_outerV=True, parent="inference_tab", header_row=True, width=1300, height=400, tag="infer_table"):
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=900, parent="infer_table", label='TEXT')
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='AUDIO FILE')
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=200, parent="infer_table", label='OPTIONS')        
+        with dpg.table(pos=(0, 0), scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
+                            borders_outerV=True, parent="infer_table_window", header_row=True, width=1300, height=400, tag="infer_table"):
+            
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=900, label='TEXT')
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=200, label='AUDIO FILE')
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=200, label='OPTIONS')        
         l = len(self.table_array)
-        for i in range(0, l):    
+        for i in range(0, l): 
             with dpg.table_row(parent="infer_table"): 
-
-                dpg.add_input_text(tag="input_text_" + str(i), default_value=str(self.table_array[i][0]), width=700)
+                if dpg.does_alias_exist("input_text_" + str(i)):
+                    dpg.remove_alias("input_text_" + str(i))
+                    dpg.remove_alias("wav_path_" + str(i))
+                dpg.add_input_text(tag="input_text_" + str(i), default_value=str(self.table_array[i][0]), width=850)
                 dpg.add_text(str(self.table_array[i][1]), tag="wav_path_" + str(i))
 
                 a_path = str(self.table_array[i][1])
@@ -182,6 +181,7 @@ class Inferer():
 
     def add_entry(self, entry):
         self.table_array = np.vstack((self.table_array, entry))
+        print(self.table_array)
         self.show_table()
 
     def callback_play_entry(self, sender, app_data, user_data):
@@ -217,17 +217,15 @@ class Inferer():
 
     def set_taco_model_path(self, path):
         self.taco_model_path = path
-    def set_waveglow_model_path(self, path):
-        self.waveglow_model_path = path
-    def set_hifigan_model_path(self, path):
-        self.hifigan_model_path = path
+    def set_waveglow_hifigan_model_path(self, path):
+        self.waveglow_hifigan_model_path = path
     def set_text_file_path(self, path):
         self.text_file_path = path
 
     def get_text_file_path(self):
         return self.text_file_path
-    def get_hifigan_model_path(self):
-        return self.hifigan_model_path
+    def get_waveglow_hifigan_model_path(self):
+        return self.waveglow_hifigan_model_path
 
     def run_inference(self, input_text, mode, wav_path):
         if not os.path.exists("wavs_out"):
@@ -238,34 +236,61 @@ class Inferer():
         hparams.p_attention_dropout = 0
         hparams.p_decoder_dropout = 0
         hparams.max_decoder_steps = 10000
+
+        chosen_model = dpg.get_value("infer_model_radio")
    
         self.taco_model = load_model(hparams)
         self.taco_model.load_state_dict(torch.load(self.taco_model_path)['state_dict'])
         _ = self.taco_model.cuda().eval().half()
-        self.waveglow_model = torch.load(self.waveglow_model_path)['model']
-        self.waveglow_model.cuda().eval().half()
-        for k in self.waveglow_model.convinv:
-            k.float()
-        self.denoiser = Denoiser(self.waveglow_model)
+
+
+
         #text = "a log file will be created when first opening a project. The last entry that was edited is recorded, so that work can easily be resumed."
         if mode == "text_input":
             text = input_text
             sequence = np.array(text_to_sequence(text, ['english_cleaners']))[None, :]
             sequence = torch.autograd.Variable(torch.from_numpy(sequence)).cuda().long()
             mel_outputs, mel_outputs_postnet, _, alignments = self.taco_model.inference(sequence)
-            
-            with torch.no_grad():
-                audio = self.waveglow_model.infer(mel_outputs_postnet, sigma=1)
-            audio_denoised = self.denoiser(audio, strength=0.02)[:, 0]
-            audioout = audio_denoised[0].data.cpu().numpy()
-            #audioout = audio[0].data.cpu().numpy()
-            audioout32 = np.float32(audioout)  
-            if wav_path:
-                wav_name = wav_path
-            else:  
-                wav_name = 'wavs_out/' + str(self.file_count) + '.wav'
-            sf.write(wav_name, audioout32, 22050)
-            return [wav_name]
+           
+            #Was waveglow or hifigan used
+            if chosen_model == "Use Hifi-Gan model":
+                print("Using Hifi-Gan model")
+                #hifigan
+                os.makedirs("hifi-gan/test_mel_files", exist_ok=True)
+                mel_out = mel_outputs_postnet.cpu().detach().numpy()
+                print(mel_out.shape)
+                np.save("hifi-gan/test_mel_files/mel.data", mel_out)
+                #infer
+                def hifigan_infer():
+                    tp = subprocess.run(['python', 'hifi-gan/inference_e2e.py', '--checkpoint_file', self.waveglow_hifigan_model_path])
+                    #play file
+
+
+
+
+
+            elif chosen_model == "Use Waveglow model":
+                print("Using Waveglow model")
+                #waveglow
+                self.waveglow_model = torch.load(self.waveglow_hifigan_model_path)['model']
+                self.waveglow_model.cuda().eval().half()
+                for k in self.waveglow_model.convinv:
+                    k.float()
+                self.denoiser = Denoiser(self.waveglow_model) 
+
+                with torch.no_grad():
+                    audio = self.waveglow_model.infer(mel_outputs_postnet, sigma=1)
+                audio_denoised = self.denoiser(audio, strength=0.02)[:, 0]
+                audioout = audio_denoised[0].data.cpu().numpy()
+                #audioout = audio[0].data.cpu().numpy()
+                audioout32 = np.float32(audioout)  
+                if wav_path:
+                    wav_name = wav_path
+                else:  
+                    wav_name = 'wavs_out/' + str(self.file_count) + '.wav'
+                sf.write(wav_name, audioout32, 22050)
+                inferer.file_count += 1
+                return [wav_name]
 
             # a = AudioSegment.from_file(wav_name) 
             # t_play = threading.Thread(target=self.play, args=(a,))
@@ -308,20 +333,20 @@ class Inferer():
                     # self.file_count += 1
                 return result
 
-def callback_open_model_taco(sender, app_data):
+def callback_infer_open_model_taco(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
     inferer.set_taco_model_path(path)
 
-def callback_open_model_waveglow(sender, app_data):
+def callback_infer_open_model_waveglow_hifigan(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
-    inferer.set_waveglow_model_path(path)
+    inferer.set_waveglow_hifigan_model_path(path)
 
-def callback_open_model_hifigan(sender, app_data):
-    path = app_data["file_path_name"]
-    path = path.rstrip('.*')
-    inferer.set_hifigan_model_path(path)
+# def callback_open_model_hifigan(sender, app_data):
+#     path = app_data["file_path_name"]
+#     path = path.rstrip('.*')
+#     inferer.set_hifigan_model_path(path)
 
 def callback_open_text_file(sender, app_data):
     d_path = app_data["selections"]
@@ -350,7 +375,6 @@ def callback_run_inference(sender, app_data, user_data):
             t_play.start()
             entry = np.array([t, result[0]])
             inferer.add_entry([entry])
-            inferer.file_count += 1            
         else:
             print("Nothing to infer!")
             return
@@ -413,8 +437,17 @@ def callback_export_infer_table(sender, data):
 def callback_status_window_control(sender, data):
     if dpg.is_item_active("inference_tab"):
         dpg.configure_item("infer_status_window", show=True)
+        dpg.configure_item("infer_table_window", show=True)
+        dpg.configure_item("infer_text_file_window", show=True)
+        dpg.configure_item("infer_single_text_window", show=True)
+        dpg.configure_item("infer_choose_model_window", show=True)
+        
     elif dpg.is_item_active("train_hifigan_tab"):
         dpg.configure_item("infer_status_window", show=False)
+        dpg.configure_item("infer_table_window", show=False)
+        dpg.configure_item("infer_text_file_window", show=False)
+        dpg.configure_item("infer_single_text_window", show=False)
+        dpg.configure_item("infer_choose_model_window", show=False)        
 
     #hide other tab windows
 
@@ -425,13 +458,10 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
         with dpg.tab(tag="inference_tab", label=" Run Inference "):
 
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_open_model_taco, tag="open_model_taco"):
+            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_taco, tag="infer_open_model_taco"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_open_model_waveglow, tag="open_model_waveglow"):
-                dpg.add_file_extension(".*", color=(255, 255, 255, 255))
-
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_open_model_hifigan, tag="open_model_hifigan"):
+            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_waveglow_hifigan, tag="infer_open_model_waveglow_hifigan"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_open_text_file, tag="open_text_file"):
@@ -443,34 +473,37 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_open_project_checkpoint, tag="open_project_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
-            with dpg.window(tag="infer_status_window", show=True, width=500, height=100, pos=(500,50), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):
+            with dpg.window(tag="infer_status_window", show=True, width=500, height=150, pos=(510,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):
                 dpg.add_text("Status...", )            
 
-            dpg.add_spacer(height=5)
-            dpg.add_text("Produce audio from nvidia tacotron2 model:")
-            dpg.add_spacer(height=5)
-            dpg.add_button(label="Choose Tacotron2 model", tag="choose_model_taco", callback=lambda: dpg.show_item("open_model_taco"))
-            dpg.add_text("", tag="tacotron2_model_status")
-            dpg.add_spacer(height=5)
-            with dpg.group(horizontal=True):
-                dpg.add_button(label="Choose Hifi-Gan model", tag="choose_model_hifigan", callback=lambda: dpg.show_item("open_model_hifigan"))  
-                dpg.add_text("", tag="hifigan_model_status")            
-                dpg.add_text("Or")       
-                dpg.add_button(label="Choose Waveglow model", tag="choose_model_waveglow", callback=lambda: dpg.show_item("open_model_waveglow"))
-                dpg.add_text("", tag="waveglow_model_status")                 
-            dpg.add_spacer(height=5)   
-            dpg.add_text("Input single line text:")
-            with dpg.group(horizontal=True):             
+            with dpg.window(tag="infer_choose_model_window", show=True, width=500, height=150, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                dpg.add_text("Produce audio from nvidia tacotron2 model:")
+                dpg.add_spacer(height=5)
+                dpg.add_button(label="Choose Tacotron2 model", tag="choose_model_taco", callback=lambda: dpg.show_item("infer_open_model_taco"))
+                dpg.add_text("", tag="tacotron2_model_status")
+                with dpg.group(horizontal=True):
+                    dpg.add_radio_button(items=["Use Hifi-Gan model", "Use Waveglow model"], tag="infer_model_radio", horizontal=False)
+                    dpg.add_button(label="Choose model", tag="infer_open_waveglow_hifigan_model", callback=lambda: dpg.show_item("infer_open_model_waveglow_hifigan"))
+
+
+                # with dpg.group(horizontal=True):
+                #     dpg.add_button(label="Choose Hifi-Gan model", tag="choose_model_hifigan", callback=lambda: dpg.show_item("open_model_hifigan"))  
+                #     dpg.add_text("", tag="hifigan_model_status")            
+                #     dpg.add_text("Or")       
+                #     dpg.add_button(label="Choose Waveglow model", tag="infer_open_waveglow_hifigan_model", callback=lambda: dpg.show_item("infer_open_model_waveglow_hifigan"))
+                #     dpg.add_text("", tag="waveglow_model_status")                 
+            with dpg.window(tag="infer_single_text_window", show=True, width=850, height=60, pos=(5,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                dpg.add_text("Input single line text:")             
                 dpg.add_input_text(width=800, tag="text_input")
                 dpg.add_button(label="Run inference", tag="run_inference_single", callback=callback_run_inference, user_data="single")
-            dpg.add_spacer(height=5)   
-            with dpg.group(horizontal=True):              
-               dpg.add_button(label="Choose text file", tag="choose_text_file", callback=lambda: dpg.show_item("open_text_file"))
-               dpg.add_button(label="Run inference", tag="run_inference", callback=callback_run_inference, user_data="file")
-               dpg.add_button(label="Export .csv", tag="export_infer_table", callback=callback_export_infer_table)
+            with dpg.window(tag="infer_text_file_window", show=True, width=500, height=100, pos=(860,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                dpg.add_text("Input text file:")
+                with dpg.group(horizontal=True):              
+                    dpg.add_button(label="Choose text file", tag="choose_text_file", callback=lambda: dpg.show_item("open_text_file"))
+                    dpg.add_button(label="Run inference", tag="run_inference", callback=callback_run_inference, user_data="file")
 
-            dpg.add_spacer(height=5)
-            
+            with dpg.window(tag="infer_table_window", show=True, width=1350, height=440, pos=(5,310), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                    dpg.add_button(label="Export .csv", tag="export_infer_table", callback=callback_export_infer_table)
 
         # with dpg.tab(tag="train_tacotron2_tab", label=" Train Tacotron2 "):
         #     dpg.add_spacer()    
