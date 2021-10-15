@@ -675,6 +675,10 @@ with dpg.theme() as global_theme:
         dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (7, 18, 54), category=dpg.mvThemeCat_Core)
         dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
 
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_Button, (59, 58, 68), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
+
     # with dpg.theme_component(dpg.mvInputInt):
     #     dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (140, 255, 23), category=dpg.mvThemeCat_Core)
     #     dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
@@ -682,18 +686,13 @@ with dpg.theme() as global_theme:
 dpg.bind_theme(global_theme)
 
 dpg.create_viewport(title="Deep Voice Model Utilities v1.0 by YouMeBangBang", width=1400, height=800)
-
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
 dpg.set_global_font_scale(1.0)
 
 dpg.set_primary_window("mainwindow", True)
-
-
 dpg.start_dearpygui()
-
-
 dpg.destroy_context()
 
 
