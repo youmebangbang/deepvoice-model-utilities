@@ -430,6 +430,7 @@ def callback_open_project(sender, app_data):
 def callback_open_project_checkpoint(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
+    print("PATH {}".format(path))
     trainer.set_hifigan_checkpoint_name(path)
 
 def callback_run_inference(sender, app_data, user_data):
@@ -585,17 +586,18 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_open_project_checkpoint, tag="open_project_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
-            with dpg.window(tag="infer_status_window", show=True, width=600, height=160, pos=(510,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
+            with dpg.window(tag="infer_status_window", show=True, width=600, height=160, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
                 dpg.add_text("Status...", tag="infer_status_text")            
 
-            with dpg.window(tag="infer_choose_model_window", show=True, width=500, height=160, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+            with dpg.window(tag="infer_choose_model_window", show=True, width=525, height=160, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 
                 with dpg.group(horizontal=True):
                     dpg.add_text("Project name: ")
                     dpg.add_input_text(default_value="MyProject", tag="infer_project_name")    
                 dpg.add_spacer(height=3)
-                dpg.add_text("Produce audio from nvidia tacotron2 model:")
-                dpg.add_button(label="Choose Tacotron2 model", tag="choose_model_taco", callback=lambda: dpg.show_item("infer_open_model_taco"))
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Produce audio from nvidia tacotron2 model:")
+                    dpg.add_button(label="Choose Tacotron2 model", tag="choose_model_taco", callback=lambda: dpg.show_item("infer_open_model_taco"))
                 dpg.add_spacer(height=3)                
                 with dpg.group(horizontal=True):
                     dpg.add_radio_button(items=["Use Hifi-Gan model", "Use Waveglow model"], tag="infer_model_radio", default_value="Use Hifi-Gan model", horizontal=False)
@@ -608,7 +610,7 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                 dpg.add_text("Input single line text:")             
                 dpg.add_input_text(width=800, tag="text_input")
                 dpg.add_button(label="Run inference", tag="run_inference_single", callback=callback_run_inference, user_data="single")
-            with dpg.window(tag="infer_text_file_window", show=True, width=450, height=100, pos=(860,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+            with dpg.window(tag="infer_text_file_window", show=True, width=250, height=100, pos=(860,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 dpg.add_text("Input text file:")
                 with dpg.group(horizontal=True):              
                     dpg.add_button(label="Choose text file", tag="choose_text_file", callback=lambda: dpg.show_item("open_text_file"))
@@ -661,11 +663,23 @@ dpg.bind_item_handler_registry("inference_tab", "status_window_handler")
 
 with dpg.font_registry():
     default_font = dpg.add_font("CheyenneSans-Light.otf", 17)
+    font2 = dpg.add_font("PublicSans-Regular.otf", 18)
+    font3 = dpg.add_font("VarelaRound-Regular.ttf", 17)
+    
 
-dpg.bind_font(default_font)
+dpg.bind_font(font2)
 
+with dpg.theme() as global_theme:
 
-dpg.bind_item_font("tab_bar_1", "CheyenneSans-Light.otf")
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (7, 18, 54), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
+
+    # with dpg.theme_component(dpg.mvInputInt):
+    #     dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (140, 255, 23), category=dpg.mvThemeCat_Core)
+    #     dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
+
+dpg.bind_theme(global_theme)
 
 dpg.create_viewport(title="Deep Voice Model Utilities v1.0 by YouMeBangBang", width=1400, height=800)
 
@@ -673,6 +687,7 @@ dpg.setup_dearpygui()
 dpg.show_viewport()
 
 dpg.set_global_font_scale(1.0)
+
 dpg.set_primary_window("mainwindow", True)
 
 
