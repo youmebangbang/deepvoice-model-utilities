@@ -30,13 +30,20 @@ dpg.create_context()
 
 class Trainer():
     def __init__(self):
-        self.process = None
+        self.train_process = None
         self.is_training_running = False
-        self.t1 = None
-        self.t2 = None     
-        self.hifigan_checkpoint_name = None
-        self.hifigan_project_name = None 
-        self.tensorboard_process = None
+        self.project_name = False
+        self.model_type = None
+
+        self.training_thread = None
+
+
+        self.taco_checkpoint_path = None
+        self.hifigan_checkpoint_path = None
+        self.waveglow_checkpoint_path = None
+
+ 
+        self.tensorboard_process = None        
     
     def set_tensorboard_process(self, p):
         self.tensorboard_process = p
@@ -44,92 +51,139 @@ class Trainer():
     def get_tensorboard_process(self):
         return self.tensorboard_process
 
-    def set_hifigan_checkpoint_name(self, path):
-        self.hifigan_checkpoint_name = path    
+    def set_taco_checkpoint_path(self, path):
+        self.taco_checkpoint_path = path    
 
-    def get_hifigan_checkpoint_name(self):
-        return self.hifigan_checkpoint_name
+    def get_taco_checkpoint_path(self):
+        return self.taco_checkpoint_path
 
-    def set_hifigan_project_name(self, path):
-        self.hifigan_project_name = path    
+    def set_hifigan_checkpoint_path(self, path):
+        self.hifigan_checkpoint_path = path    
 
-    def get_hifigan_project_name(self):
-        return self.hifigan_project_name
+    def get_hifigan_checkpoint_path(self):
+        return self.hifigan_checkpoint_path
+
+    def set_waveglow_checkpoint_path(self, path):
+        self.waveglow_checkpoint_path = path    
+
+    def get_waveglow_checkpoint_path(self):
+        return self.waveglow_checkpoint_path        
+
+    def set_project_name(self, path):
+        self.project_name = path    
+
+    def get_project_name(self):
+        return self.project_name
 
     def is_running(self):
         return self.is_training_running
 
-    def train_taco(self):
-        dpg.set_value("shell_output_tacotron2", None)
-
-    def train_waveglow(self):
-        pass
-
-    def train_hifigan(self):
+    def train_model(self, model_type):
         self.is_training_running = True
         os.chdir("hifi-gan")      
 
-        def start_process():
-            print(self.hifigan_checkpoint_name)
-            print(self.hifigan_project_name)
-           
-            self.process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.hifigan_checkpoint_name,
-            '--input_training_file', self.hifigan_project_name + '/' + 'training.csv', '--input_validation_file', self.hifigan_project_name + '/' + 'validation.csv', '--input_wavs_dir', self.hifigan_project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+        def train_hifigan():
+            self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.hifigan_checkpoint_path,
+            '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
                        
-            # self.process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
             # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , stdout=subprocess.PIPE)  
            
-            # self.process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # self.train_process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
             # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , capture_output=True, text=True)  
 
             os.chdir("../")
-
             while self.is_training_running:
                 time.sleep(.01)
-                out = self.process.stdout.readline().decode('utf-8')
+                out = self.train_process.stdout.readline().decode('utf-8')
                 if out: 
                     print(out)
-                    dpg.set_value("shell_output_hifigan", out)
+                    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
+                    dpg.set_y_scroll("trainer_status_window", 1000000)              
 
-        self.t1 = threading.Thread(target=start_process)
+        def train_taco():
+            self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.taco_checkpoint_path,
+            '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+                       
+            # self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , stdout=subprocess.PIPE)  
+           
+            # self.train_process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , capture_output=True, text=True)  
 
-        self.t1.start()
+            os.chdir("../")
+            while self.is_training_running:
+                time.sleep(.01)
+                out = self.train_process.stdout.readline().decode('utf-8')
+                if out: 
+                    print(out)
+                    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
+                    dpg.set_y_scroll("trainer_status_window", 1000000)              
 
-        print("HifiGan training started!")
-        dpg.set_value("shell_output_hifigan", "HifiGan training started. Check console for more information.")
+        def train_waveglow():
+            self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.waveglow_checkpoint_path,
+            '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+                       
+            # self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , stdout=subprocess.PIPE)  
+           
+            # self.train_process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
+            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , capture_output=True, text=True)  
 
-    def stop_training_hifigan(self):
-        print("\nStopping hifigan training... waiting for epoch to end...")
-        with open("training_status.txt", 'w') as f:
-            f.write("terminate")
-        if self.process:
-            self.process.kill()
+            os.chdir("../")
+            while self.is_training_running:
+                time.sleep(.01)
+                out = self.train_process.stdout.readline().decode('utf-8')
+                if out: 
+                    print(out)
+                    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
+                    dpg.set_y_scroll("trainer_status_window", 1000000)              
+
+        self.model_type = model_type
+        if (model_type == "Train Hifi-Gan model"):
+            self.training_thread = threading.Thread(target=train_hifigan)
+            self.training_thread.start()
+            print("HifiGan training started!")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nHifi-Gan training started.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)              
+
+        if (model_type == "Train Tacotron2 model"):
+            self.training_thread = threading.Thread(target=train_taco)
+            self.training_thread.start()
+            print("Tacotron2 training started!")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTacotron2 training started.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)              
+
+        if (model_type == "Train Waveglow model"):
+            self.training_thread = threading.Thread(target=train_waveglow)
+            self.training_thread.start()
+            print("Waveglow training started!")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nWaveglow training started.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)              
+
+    def stop_training(self):
+        print("\nStopping training...")
+        if self.train_process:
+            self.train_process.kill()
             time.sleep(1)
             self.is_training_running = False
-            dpg.set_value("shell_output_hifigan", "training stopped.")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining process stopped.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)              
             print("Training stopped successfully.")
-            if os.path.exists("hifi-gan/training_status.txt"):
-                f = open("hifi-gan/training_status.txt", 'w')
-                f.close()                                   
-            # os.chdir("../")    
 
-    def stop_training_tacotron2(self):
-        pass
-        # with open ("hifi-gan/training_status.txt", 'w') as f:
-        #     pass
-        # if self.process:
-        #     self.process.kill()
-        #     print("hifigan training has ended")
-        #     dpg.set_value("shell_output_tacotron2", "training stopped.")
-       
-    def stop_training_waveglow(self):
-        pass
-        # with open ("waveglow/training_status.txt", 'w') as f:
-        #     pass
-        # if self.process:
-        #     self.process.kill()
-        #     print("hifigan training has ended")
-        #     dpg.set_value("shell_output_waveglow", "training stopped.")
+        # if self.model_type == "Train Hifi-Gan model":
+        #     print("\nStopping hifigan training... waiting for epoch to end...")
+        #     with open("training_status.txt", 'w') as f:
+        #         f.write("terminate")
+        #     if self.train_process:
+        #         self.train_process.kill()
+        #         time.sleep(1)
+        #         self.is_training_running = False
+        #         dpg.set_value("trainer_status_output", "training stopped.")
+        #         print("Training stopped successfully.")
+        #         if os.path.exists("hifi-gan/training_status.txt"):
+        #             f = open("hifi-gan/training_status.txt", 'w')
+        #             f.close()                   
 
 class Inferer():
     def __init__(self):
@@ -195,7 +249,7 @@ class Inferer():
     def callback_redo_entry(self, sender, app_data, user_data):
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nRe-inferring entry with updated text.")
-        dpg.set_y_scroll("infer_status_window", 1000)
+        dpg.set_y_scroll("infer_status_window", 1000000)
         self.stop()
         text = dpg.get_value("input_text_" + str(user_data["rank"]))
         #run inference again
@@ -207,7 +261,7 @@ class Inferer():
     def callback_remove_entry(self, sender, app_data, user_data):
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nRemoving entry")
-        dpg.set_y_scroll("infer_status_window", 1000)      
+        dpg.set_y_scroll("infer_status_window", 1000000)      
         self.stop()    
         new_array = np.empty([0,2])
         rank = user_data["rank"]
@@ -218,9 +272,7 @@ class Inferer():
                
         os.remove(user_data["wav_path"])
         inferer.set_table_array(new_array)
-        inferer.show_table()
-
-        
+        inferer.show_table()        
     
     def play(self, data):
         wav = data            
@@ -336,7 +388,7 @@ class Inferer():
                     
                     status = dpg.get_value("infer_status_text")
                     dpg.set_value("infer_status_text", status + "\nInferring cut {} of {}.".format(i+1, p_count))
-                    dpg.set_y_scroll("infer_status_window", 1000)
+                    dpg.set_y_scroll("infer_status_window", 1000000)
 
                     if chosen_model == "Use Hifi-Gan model":
                         print("Using Hifi-Gan model")
@@ -389,13 +441,14 @@ class Inferer():
 
                 return result
 
+
 def callback_infer_open_model_taco(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
     inferer.set_taco_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nTacotron2 model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000)
+    dpg.set_y_scroll("infer_status_window", 1000000)
 
 def callback_infer_open_model_hifigan(sender, app_data):
     path = app_data["file_path_name"]
@@ -403,7 +456,7 @@ def callback_infer_open_model_hifigan(sender, app_data):
     inferer.set_hifigan_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nHifi-Gan Model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000)    
+    dpg.set_y_scroll("infer_status_window", 1000000)    
 
 def callback_infer_open_model_waveglow(sender, app_data):
     path = app_data["file_path_name"]
@@ -411,7 +464,7 @@ def callback_infer_open_model_waveglow(sender, app_data):
     inferer.set_waveglow_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nWaveglow Model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000)  
+    dpg.set_y_scroll("infer_status_window", 1000000)  
 
 def callback_infer_open_text_file(sender, app_data):
     d_path = app_data["selections"]
@@ -420,35 +473,90 @@ def callback_infer_open_text_file(sender, app_data):
     inferer.set_text_file_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nText file {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000)    
+    dpg.set_y_scroll("infer_status_window", 1000000)    
 
-def callback_open_project(sender, app_data):
+def callback_trainer_open_project(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
-    trainer.set_hifigan_project_name(path)
+    trainer.set_project_name(path)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\Project folder {} chosen.".format(path))
+    dpg.set_y_scroll("trainer_status_window", 1000000)      
 
-def callback_open_project_checkpoint(sender, app_data):
+
+def callback_trainer_open_hifigan_checkpoint(sender, app_data):
     path = app_data["file_path_name"]
     path = path.rstrip('.*')
     print("PATH {}".format(path))
-    trainer.set_hifigan_checkpoint_name(path)
+    trainer.set_hifigan_checkpoint_path(path)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nHifi-Gan checkpoint {} chosen.".format(path))
+    dpg.set_y_scroll("trainer_status_window", 1000000)       
+
+def callback_trainer_open_taco_checkpoint(sender, app_data):
+    path = app_data["file_path_name"]
+    path = path.rstrip('.*')
+    print("PATH {}".format(path))
+    trainer.set_taco_checkpoint_path(path)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTacotron2 checkpoint {} chosen.".format(path))
+    dpg.set_y_scroll("trainer_status_window", 1000000) 
+
+def callback_trainer_open_waveglow_checkpoint(sender, app_data):
+    path = app_data["file_path_name"]
+    path = path.rstrip('.*')
+    print("PATH {}".format(path))
+    trainer.set_waveglow_checkpoint_path(path)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nWaveglow checkpoint {} chosen.".format(path))
+    dpg.set_y_scroll("trainer_status_window", 1000000) 
+
+
+
+def callback_trainer_start_training(sender, data):
+    if trainer.is_running():
+        return
+    trainer.train_model(dpg.get_value("train_models_radio"))
+
+def callback_stop_training(sender, data):
+    if trainer.is_running():
+        trainer.stop_training()
+        dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nWaveglow training started.")
+        dpg.set_y_scroll("trainer_status_window", 1000000)    
+
+
+def callback_trainer_start_tensorboard(sender, data):
+    path = trainer.get_checkpoint_path()
+    if not path:
+        return
+    import webbrowser as web
+    web.open("http://localhost:6006")
+    # out = "tensorboard --logdir '/model utilities/hifi-gan/attenborough.model/logs'"
+    # print(out)
+    tp = subprocess.Popen(['tensorboard', '--logdir', path])
+    trainer.set_tensorboard_process(tp)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process started. Visit http://localhost:6006")
+    dpg.set_y_scroll("trainer_status_window", 1000000)     
+
+def callback_trainer_stop_tensorboard(sender, data):
+    tp = trainer.get_tensorboard_process()
+    tp.stop()    
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process stopped.")
+    dpg.set_y_scroll("trainer_status_window", 1000000)       
+
 
 def callback_run_inference(sender, app_data, user_data):
     # check to see if models selected
     if not inferer.get_hifigan_model_path() and dpg.get_value("infer_model_radio") == "Use Hifi-Gan model":
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Hifi-Gan mode but no model chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000)
+        dpg.set_y_scroll("infer_status_window", 1000000)
         return
     if not inferer.get_waveglow_model_path() and dpg.get_value("infer_model_radio") == "Use Waveglow model":
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Waveglow mode but no model chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000)            
+        dpg.set_y_scroll("infer_status_window", 1000000)            
         return
     if not inferer.get_taco_model_path():
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Tacotron2 model not chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000)
+        dpg.set_y_scroll("infer_status_window", 1000000)
         return
 
     if user_data == "single": 
@@ -457,7 +565,7 @@ def callback_run_inference(sender, app_data, user_data):
             print("running inference")            
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nRunning inference...")
-            dpg.set_y_scroll("infer_status_window", 1000)
+            dpg.set_y_scroll("infer_status_window", 1000000)
 
             result = inferer.run_inference(t, "text_input", None)
             a = AudioSegment.from_file(result[0]) 
@@ -467,12 +575,12 @@ def callback_run_inference(sender, app_data, user_data):
             inferer.add_entry([entry])
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nInferred entry added to table.")
-            dpg.set_y_scroll("infer_status_window", 1000)
+            dpg.set_y_scroll("infer_status_window", 1000000)
         else:
             print("Nothing to infer!")
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nError: no input to infer!")
-            dpg.set_y_scroll("infer_status_window", 1000)
+            dpg.set_y_scroll("infer_status_window", 1000000)
             return
     
     elif user_data == "file":
@@ -481,7 +589,7 @@ def callback_run_inference(sender, app_data, user_data):
             if os.path.exists(inferer.get_text_file_path()):
                 status = dpg.get_value("infer_status_text")
                 dpg.set_value("infer_status_text", status + "\nRunning inference...")
-                dpg.set_y_scroll("infer_status_window", 1000)
+                dpg.set_y_scroll("infer_status_window", 1000000)
                 with open(inferer.get_text_file_path(), 'r') as f:
                     r = f.readlines()
                     text_file = " ".join(r)
@@ -491,40 +599,12 @@ def callback_run_inference(sender, app_data, user_data):
                         inferer.add_entry([entry])
                 status = dpg.get_value("infer_status_text")
                 dpg.set_value("infer_status_text", status + "\nInferring text file completed.")
-                dpg.set_y_scroll("infer_status_window", 1000)
+                dpg.set_y_scroll("infer_status_window", 1000000)
         else:
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nError: Text file not chosen!")
-            dpg.set_y_scroll("infer_status_window", 1000)
+            dpg.set_y_scroll("infer_status_window", 1000000)
             return
-
-
-
-def callback_train_taco(sender, data):
-    print("running taco training")
-    trainer.train_taco()
-
-def callback_train_hifigan(sender, data):
-    if trainer.is_running():
-        return
-    print("running hifigan training")
-    trainer.train_hifigan()
-
-def callback_stop_training(sender, data):
-    trainer.stop_training_hifigan()
-    trainer.stop_training_tacotron2()
-    trainer.stop_training_waveglow()
-
-def callback_start_tensorboard(sender, data):
-    path = trainer.get_hifigan_checkpoint_name()
-    if not path:
-        return
-    import webbrowser as web
-    web.open("http://localhost:6006")
-    # out = "tensorboard --logdir '/model utilities/hifi-gan/attenborough.model/logs'"
-    # print(out)
-    tp = subprocess.Popen(['tensorboard', '--logdir', path])
-    trainer.set_tensorboard_process(tp)
 
 def callback_export_infer_table(sender, data):
     if inferer.get_table_array().size > 0:
@@ -538,11 +618,11 @@ def callback_export_infer_table(sender, data):
                 f.write('\n')
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nTable exported to project name")
-        dpg.set_y_scroll("infer_status_window", 1000)
+        dpg.set_y_scroll("infer_status_window", 1000000)
     else:
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: no table to export!")
-        dpg.set_y_scroll("infer_status_window", 1000)
+        dpg.set_y_scroll("infer_status_window", 1000000)
 
 def callback_status_window_control(sender, data):
     if dpg.is_item_active("inference_tab"):
@@ -551,22 +631,23 @@ def callback_status_window_control(sender, data):
         dpg.configure_item("infer_text_file_window", show=True)
         dpg.configure_item("infer_single_text_window", show=True)
         dpg.configure_item("infer_choose_model_window", show=True)
+        dpg.configure_item("trainer_status_window", show=False)
+        dpg.configure_item("train_models_project_window", show=False)        
         
-    elif dpg.is_item_active("train_hifigan_tab"):
+    elif dpg.is_item_active("train_models_tab"):
         dpg.configure_item("infer_status_window", show=False)
         dpg.configure_item("infer_table_window", show=False)
         dpg.configure_item("infer_text_file_window", show=False)
         dpg.configure_item("infer_single_text_window", show=False)
-        dpg.configure_item("infer_choose_model_window", show=False)        
-
-    #hide other tab windows
+        dpg.configure_item("infer_choose_model_window", show=False)    
+        dpg.configure_item("train_models_project_window", show=True)
+        dpg.configure_item("trainer_status_window", show=True)
 
 with dpg.window(tag='mainwindow', label="Model Utilites"):
    
     with dpg.tab_bar(tag="tab_bar_1"):        
             
         with dpg.tab(tag="inference_tab", label=" Run Inference "):
-
 
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_taco, tag="infer_open_model_taco"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
@@ -580,10 +661,16 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_text_file, tag="open_text_file"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_open_project, tag="open_project_dialog"):
+            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_trainer_open_project, tag="trainer_open_project_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))                
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_open_project_checkpoint, tag="open_project_checkpoint_dialog"):
+            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_trainer_open_hifigan_checkpoint, tag="trainer_open_hifigan_checkpoint_dialog"):
+                dpg.add_file_extension(".*", color=(255, 255, 255, 255))
+
+            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_taco_checkpoint, tag="trainer_open_taco_checkpoint_dialog"):
+                dpg.add_file_extension(".*", color=(255, 255, 255, 255))  
+                
+            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_waveglow_checkpoint, tag="trainer_open_waveglow_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
             with dpg.window(tag="infer_status_window", show=True, width=600, height=160, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
@@ -617,48 +704,38 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                     dpg.add_button(label="Run inference", tag="run_inference", callback=callback_run_inference, user_data="file")
 
             with dpg.window(tag="infer_table_window", no_background=True, show=True, width=1350, height=440, pos=(5,310), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
-                    dpg.add_button(label="Export .csv", tag="export_infer_table", callback=callback_export_infer_table)
+                    dpg.add_button(label="Export .csv", tag="export_infer_table", callback=callback_export_infer_table)   
 
-        # with dpg.tab(tag="train_tacotron2_tab", label=" Train Tacotron2 "):
-        #     dpg.add_spacer()    
-        #     dpg.add_button(label="Train Tacotron2 model", tag="train_taco")
-        #     dpg.add_clicked_handler("train_taco", callback=callback_train_taco)
-        #     dpg.add_spacer()    
-        #     dpg.add_button(label="Stop training", tag="stop_training_tacotron2")
-        #     dpg.add_clicked_handler("stop_training_tacotron2", callback=callback_stop_training)       
-        #     dpg.add_spacer()    
-        #     dpg.add_text("Shell output displayed here", tag="shell_output_tacotron2")      
-
-        with dpg.tab(tag="train_hifigan_tab", label=" Train Hifi-Gan "):  
-            dpg.add_spacer()    
-            dpg.add_text("Project folder should contain audio clips in its /wavs directory.\nTraining file should be named 'training.csv' and validation file named 'validation.csv'")
-            dpg.add_spacer()                
-            dpg.add_button(label="Choose project folder", tag="open_project", callback=lambda: dpg.show_item("open_project_dialog"))
-            dpg.add_spacer()                
-            dpg.add_button(label="Choose checkpoint folder (none for new)", tag="open_project_checkpoint", callback=lambda: dpg.show_item("open_project_checkpoint_dialog"))
-            dpg.add_spacer()    
-            dpg.add_button(label="Train HifiGan model", tag="train_hifigan", callback=callback_train_hifigan)
-            dpg.add_spacer()    
-            dpg.add_button(label="Stop training", tag="stop_training_hifigan", callback=callback_stop_training)
-            dpg.add_spacer()    
-            dpg.add_button(label="Start Tensorboard", tag="start_tensorboard", callback=callback_start_tensorboard)
-            dpg.add_spacer()    
-            dpg.add_text("Shell output displayed here", tag="shell_output_hifigan")  
-
-        # with dpg.tab(tag="train_waveglow_tab", label=" Train Waveglow "):        
-        #     dpg.add_spacer()    
-        #     dpg.add_button(label="Stop training", tag="stop_training_waveglow")
-        #     dpg.add_clicked_handler("stop_training_waveglow", callback=callback_stop_training)       
-        #     dpg.add_spacer()    
-        #     dpg.add_text("Shell output displayed here", tag="shell_output_waveglow")
+        with dpg.tab(tag="train_models_tab", label=" Train Models "):  
+            with dpg.window(tag="train_models_project_window", show=False, width=600, height=300, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                dpg.add_text("TRAIN TACOTRON2, HIFI-GAN, OR WAVEGLOW MODELS")
+                dpg.add_text("Project folder should contain audio clips in its /wavs directory.\nTraining file should be named 'training.csv' and validation file named 'validation.csv'\nMore information at https://github.com/youmebangbang/deepvoice-model-utilities")
+                dpg.add_spacer(height=3)
+                dpg.add_button(label="Choose project folder", tag="trainer_open_project", callback=lambda: dpg.show_item("trainer_open_project_dialog"))
+                dpg.add_spacer(height=3) 
+                with dpg.group(horizontal=True):        
+                    dpg.add_radio_button(items=["Train Tacotron2 model", "Train Hifi-Gan model", "Train Waveglow model"], tag="train_models_radio", default_value="Train Tacotron2 model", horizontal=False)
+                    with dpg.group():
+                        dpg.add_button(label="Choose Tacotron2 checkpoint file", tag="trainer_open_taco_checkpoint", callback=lambda: dpg.show_item("trainer_open_taco_checkpoint_dialog"))
+                        dpg.add_button(label="Choose Hifi-Gan checkpoint folder", tag="trainer_open_hifigan_checkpoint", callback=lambda: dpg.show_item("trainer_open_hifigan_checkpoint_dialog"))
+                        dpg.add_button(label="Choose Waveglow checkpoint file", tag="trainer_open_waveglow_checkpoint", callback=lambda: dpg.show_item("trainer_open_waveglow_checkpoint_dialog"))
+                    
+                dpg.add_spacer(height=3)               
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Start training", tag="trainer_start_training", callback=callback_trainer_start_training)
+                    dpg.add_button(label="Stop training", tag="trainer_stop_training", callback=callback_stop_training)
+                    dpg.add_button(label="Start tensorboard", tag="trainer_start_tensorboard", callback=callback_trainer_start_tensorboard)
+                    dpg.add_button(label="Stop tensorboard", tag="stop_tensorboard", callback=callback_trainer_stop_tensorboard)
+              
+            with dpg.window(tag="trainer_status_window", show=False, width=700, height=300, pos=(610,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):              
+               dpg.add_text("Status...", tag="trainer_status_output")  
 
 inferer = Inferer()
-trainer = Trainer()
-   
+trainer = Trainer()   
 
 with dpg.item_handler_registry(tag="status_window_handler"):
     dpg.add_item_active_handler(callback=callback_status_window_control)
-dpg.bind_item_handler_registry("train_hifigan_tab", "status_window_handler")
+dpg.bind_item_handler_registry("train_models_tab", "status_window_handler")
 dpg.bind_item_handler_registry("inference_tab", "status_window_handler")
 
 with dpg.font_registry():
