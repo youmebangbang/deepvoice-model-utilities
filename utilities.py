@@ -78,7 +78,7 @@ class Trainer():
     def is_running(self):
         return self.is_training_running
 
-    def train_model(self, model_type):
+    def train_model(self, model_type, batch_size, iters_per_checkpoint, learning_rate, num_gpus):
 
         self.is_training_running = True
      
@@ -102,20 +102,19 @@ class Trainer():
                     dpg.set_y_scroll("trainer_status_window", 1000000)              
 
         def train_taco():
-            
+            os.chdir("tacotron2") 
+
             #check to see if multipgu 
-
-
-            self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.taco_checkpoint_path,
-            '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
-                       
-            # self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
-            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , stdout=subprocess.PIPE)  
+            if num_gpus > 1:
+                self.train_process =  subprocess.Popen(['python', '-u', 'distributed.py', '--checkpoint_path', self.taco_checkpoint_path,
+                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+                   ############
+            else:              
+                self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.taco_checkpoint_path,
+                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
            
-            # self.train_process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
-            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , capture_output=True, text=True)  
-
             os.chdir("../")
+
             while self.is_training_running:
                 time.sleep(.01)
                 out = self.train_process.stdout.readline().decode('utf-8')
@@ -125,16 +124,13 @@ class Trainer():
                     dpg.set_y_scroll("trainer_status_window", 1000000)              
 
         def train_waveglow():
+            os.chdir("waveglow") 
+
             self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.waveglow_checkpoint_path,
             '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
                        
-            # self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
-            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , stdout=subprocess.PIPE)  
-           
-            # self.train_process =  subprocess.run(['python', '-u', 'train.py', '--checkpoint_path', 'attenborough.model',
-            # '--input_training_file', 'training.csv', '--input_validation_file', 'validation.csv', '--input_wavs_dir', 'wavs'] , capture_output=True, text=True)  
-
             os.chdir("../")
+
             while self.is_training_running:
                 time.sleep(.01)
                 out = self.train_process.stdout.readline().decode('utf-8')
@@ -327,10 +323,9 @@ class Inferer():
         os.makedirs(dpg.get_value("infer_project_name") + "/wavs_out", exist_ok=True)
         hparams = create_hparams()
         hparams.sampling_rate = 22050
-        #hparams change dropouts!  
         hparams.p_attention_dropout = 0
         hparams.p_decoder_dropout = 0
-        hparams.max_decoder_steps = 10000
+        hparams.max_decoder_steps = int(dpg.get_value("infer_max_decoder_steps"))
 
         chosen_model = dpg.get_value("infer_model_radio")
    
@@ -511,8 +506,7 @@ def callback_trainer_open_project(sender, app_data):
     path = app_data["selections"][key]
     trainer.set_project_name(path)
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\Project folder {} chosen.".format(path))
-    dpg.set_y_scroll("trainer_status_window", 1000000)      
-
+    dpg.set_y_scroll("trainer_status_window", 1000000) 
 
 def callback_trainer_open_hifigan_checkpoint(sender, app_data):
     d_path = app_data["selections"]
@@ -555,7 +549,12 @@ def callback_trainer_start_training(sender, data):
         dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining new Waveglow model without checkpoint!")
         dpg.set_y_scroll("trainer_status_window", 1000000)                           
 
-    trainer.train_model(dpg.get_value("train_models_radio"))
+    batch_size = dpg.get_value("trainer_batch_size")
+    iters_per_checkpoint = dpg.get_value("trainer_iters_per_checkpoint")    
+    learning_rate = dpg.get_value("trainer_learning_rate_radio")
+    num_gpus = dpg.get_value("trainer_num_gpus")
+
+    trainer.train_model(dpg.get_value("train_models_radio"), batch_size, iters_per_checkpoint, learning_rate, num_gpus)
 
 def callback_stop_training(sender, data):
     if trainer.is_running():
@@ -580,6 +579,16 @@ def callback_trainer_stop_tensorboard(sender, data):
     tp.stop()    
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process stopped.")
     dpg.set_y_scroll("trainer_status_window", 1000000)       
+
+def callback_trainer_save_params(sender, data, user_data):
+    if user_data == "tacotron2":
+        with open("tacotron2/hparams.py", "r") as f:
+            values = f.read()
+            values = values.replace("")
+    elif user_data == "hifigan":
+        pass
+    elif user_data == "waveglow":
+        pass
 
 
 def callback_run_inference(sender, app_data, user_data):
@@ -677,7 +686,7 @@ def callback_export_infer_table(sender, data):
         dpg.set_value("infer_status_text", status + "\nError: no table to export!")
         dpg.set_y_scroll("infer_status_window", 1000000)
 
-def callback_status_window_control(sender, data):
+def callback_window_control(sender, data):
     if dpg.is_item_active("inference_tab"):
         dpg.configure_item("infer_status_window", show=True)
         dpg.configure_item("infer_table_window", show=True)
@@ -685,7 +694,9 @@ def callback_status_window_control(sender, data):
         dpg.configure_item("infer_single_text_window", show=True)
         dpg.configure_item("infer_choose_model_window", show=True)
         dpg.configure_item("trainer_status_window", show=False)
-        dpg.configure_item("train_models_project_window", show=False)        
+        dpg.configure_item("train_models_project_window", show=False)
+        dpg.configure_item("trainer_hparams_window", show=False)
+                
         
     elif dpg.is_item_active("train_models_tab"):
         dpg.configure_item("infer_status_window", show=False)
@@ -695,6 +706,7 @@ def callback_status_window_control(sender, data):
         dpg.configure_item("infer_choose_model_window", show=False)    
         dpg.configure_item("train_models_project_window", show=True)
         dpg.configure_item("trainer_status_window", show=True)
+        dpg.configure_item("trainer_hparams_window", show=True)
 
 with dpg.window(tag='mainwindow', label="Model Utilites"):
    
@@ -726,10 +738,10 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_waveglow_checkpoint, tag="trainer_open_waveglow_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
-            with dpg.window(tag="infer_status_window", show=True, width=600, height=160, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
+            with dpg.window(tag="infer_status_window", show=True, width=600, height=170, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
                 dpg.add_text("Status...", tag="infer_status_text")            
 
-            with dpg.window(tag="infer_choose_model_window", show=True, width=525, height=160, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+            with dpg.window(tag="infer_choose_model_window", show=True, width=525, height=170, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 
                 with dpg.group(horizontal=True):
                     dpg.add_text("Project name: ")
@@ -744,18 +756,20 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                     with dpg.group():
                         dpg.add_button(label="Choose model", tag="infer_open_hifigan_model", callback=lambda: dpg.show_item("infer_open_model_hifigan"))
                         dpg.add_button(label="Choose model", tag="infer_open_waveglow_model", callback=lambda: dpg.show_item("infer_open_model_waveglow"))
-             
-            with dpg.window(tag="infer_single_text_window", show=True, width=850, height=60, pos=(5,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+                dpg.add_spacer(height=2)
+                dpg.add_input_text(width=75, tag="infer_max_decoder_steps", label="Max decoder steps", default_value=10000)
+
+            with dpg.window(tag="infer_single_text_window", show=True, width=850, height=60, pos=(5,210), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 dpg.add_text("Input single line text:")             
                 dpg.add_input_text(width=800, tag="text_input")
                 dpg.add_button(label="Run inference", tag="run_inference_single", callback=callback_run_inference, user_data="single")
-            with dpg.window(tag="infer_text_file_window", show=True, width=250, height=100, pos=(860,200), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+            with dpg.window(tag="infer_text_file_window", show=True, width=275, height=100, pos=(860,210), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 dpg.add_text("Input text file:")
                 with dpg.group(horizontal=True):              
                     dpg.add_button(label="Choose text file", tag="choose_text_file", callback=lambda: dpg.show_item("open_text_file"))
                     dpg.add_button(label="Run inference", tag="run_inference", callback=callback_run_inference, user_data="file")
 
-            with dpg.window(tag="infer_table_window", no_background=True, show=True, width=1350, height=440, pos=(5,310), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
+            with dpg.window(tag="infer_table_window", no_background=True, show=True, width=1350, height=440, pos=(0,310), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
                 dpg.add_button(label="Export .csv", tag="export_infer_table", callback=callback_export_infer_table) 
                 with dpg.table(pos=(0, 0), resizable=False, scrollY=True, row_background=True, borders_innerH=True, borders_outerH=True, borders_innerV=True,
                     borders_outerV=True, parent="infer_table_window", header_row=True, width=1325, height=400, tag="infer_table") as infer_table_object:
@@ -788,18 +802,29 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.window(tag="trainer_status_window", show=False, width=700, height=300, pos=(610,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):              
                dpg.add_text("Status...", tag="trainer_status_output")  
 
-        with dpg.tab(tag="config_tab", label=" Configure Parameters "):
-            pass
+            with dpg.window(tag="trainer_hparams_window", show=False, width=600, height=300, pos=(5,340), horizontal_scrollbar=False, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):              
+                dpg.add_text("TRAINING PARAMETERS")
+                dpg.add_spacer(height=3) 
+                with dpg.group():
+                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="10", label="Batch size")
+                    dpg.add_spacer(height=3) 
+                    dpg.add_input_text(width=100, tag="trainer_iters_per_checkpoint", default_value="5000", label="Iterations per checkpoint")
+                    dpg.add_spacer(height=3) 
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Choose learning rate:")
+                        dpg.add_radio_button(items=["1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="train_learning_rate_radio", default_value="1e-4", horizontal=False)
+                    dpg.add_spacer(height=3) 
+                    dpg.add_input_text(width=50, tag="trainer_num_gpus", default_value="1", label="Number of GPU's (Linux only!)")
 
 
-
+                
 inferer = Inferer()
 trainer = Trainer()   
 
-with dpg.item_handler_registry(tag="status_window_handler"):
-    dpg.add_item_active_handler(callback=callback_status_window_control)
-dpg.bind_item_handler_registry("train_models_tab", "status_window_handler")
-dpg.bind_item_handler_registry("inference_tab", "status_window_handler")
+with dpg.item_handler_registry(tag="window_handler"):
+    dpg.add_item_active_handler(callback=callback_window_control)
+dpg.bind_item_handler_registry("train_models_tab", "window_handler")
+dpg.bind_item_handler_registry("inference_tab", "window_handler")
 
 with dpg.font_registry():
     default_font = dpg.add_font("CheyenneSans-Light.otf", 17)
