@@ -24,6 +24,7 @@ from pydub import AudioSegment
 from pydub.playback import play
 import soundfile as sf
 import simpleaudio as sa
+import json
 
 dpg.create_context()
 
@@ -32,7 +33,7 @@ class Trainer():
     def __init__(self):
         self.train_process = None
         self.is_training_running = False
-        self.project_name = False
+        self.project_folder = False
         self.model_type = None
 
         self.training_thread = None
@@ -69,28 +70,39 @@ class Trainer():
     def get_waveglow_checkpoint_path(self):
         return self.waveglow_checkpoint_path        
 
-    def set_project_name(self, path):
-        self.project_name = path    
+    def set_project_folder(self, path):
+        self.project_folder = path    
 
-    def get_project_name(self):
-        return self.project_name
+    def get_project_folder(self):
+        return self.project_folder
 
     def is_running(self):
         return self.is_training_running
 
-    def train_model(self, model_type, batch_size, iters_per_checkpoint, learning_rate, num_gpus):
+    def train_model(self, model_type, batch_size, iters_per_checkpoint, learning_rate, multigpu):
 
         self.is_training_running = True
      
         def train_hifigan():
             os.chdir("hifi-gan") 
+
+            # Save parameters to hifigan json config_v3
+            with open("config_v3.json", "r") as f:
+                data = json.load(f)
+                data['batch_size'] = int(batch_size)
+                if multigpu:
+                    data['num_gpus'] = 0
+            with open("config_v3.json", 'w') as f:
+                json.dump(data, f, indent=4)
+
+
             if self.hifigan_checkpoint_path:
                 self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.hifigan_checkpoint_path,
-                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+                '--input_training_file', self.project_folder + '/' + 'training.csv', '--input_validation_file', self.project_folder + '/' + 'validation.csv', '--input_wavs_dir', self.project_folder + '/' + 'wavs'] , stdout=subprocess.PIPE)  
             else:
                 #new checkpoint
-                self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.project_name + '_model',
-                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+                self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.project_folder + '_model',
+                '--input_training_file', self.project_folder + '/' + 'training.csv', '--input_validation_file', self.project_folder + '/' + 'validation.csv', '--input_wavs_dir', self.project_folder + '/' + 'wavs'] , stdout=subprocess.PIPE)  
 
             os.chdir("../")
             while self.is_training_running:
@@ -99,19 +111,31 @@ class Trainer():
                 if out: 
                     print(out)
                     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
-                    dpg.set_y_scroll("trainer_status_window", 1000000)              
+                    dpg.set_y_scroll("trainer_status_window", 100000000)              
 
         def train_taco():
             os.chdir("tacotron2") 
+            os.makedirs(self.project_folder + '/checkpoints/logs', exist_ok=True)
 
-            #check to see if multipgu 
-            if num_gpus > 1:
-                self.train_process =  subprocess.Popen(['python', '-u', 'distributed.py', '--checkpoint_path', self.taco_checkpoint_path,
-                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
-                   ############
-            else:              
-                self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.taco_checkpoint_path,
-                '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
+            run_command = []
+            if multigpu:
+                run_command = ['python', '-u', 'distributed.py']          
+            else:
+                run_command = ['python', '-u', 'train.py']          
+
+            if self.taco_checkpoint_path:
+                run_command.extend(['--checkpoint_path', self.taco_checkpoint_path])
+
+            if multigpu:
+                run_command.extend(['--hparams', 'batch_size={}, iters_per_checkpoint={}, learning_rate={}, training_files={}, validation_files={}, project_path={}, distributed_run=True'.format(int(batch_size), int(iters_per_checkpoint), float(learning_rate), self.project_folder + '/' + 'training.csv', self.project_folder + '/' + 'validation.csv', self.project_folder)])
+            else:
+                run_command.extend(['--hparams', 'batch_size={}, iters_per_checkpoint={}, learning_rate={}, training_files={}, validation_files={}, project_path={}, distributed_run=False'.format(int(batch_size), int(iters_per_checkpoint), float(learning_rate), self.project_folder + '/' + 'training.csv', self.project_folder + '/' + 'validation.csv', self.project_folder)])
+      
+            run_command.extend(['--log_directory', self.project_folder + '/checkpoints/logs' ])
+            run_command.extend(['--output_directory', self.project_folder + '/checkpoints' ])
+
+            print(run_command)
+            self.train_process =  subprocess.Popen(run_command, stdout=subprocess.PIPE)  
            
             os.chdir("../")
 
@@ -121,14 +145,32 @@ class Trainer():
                 if out: 
                     print(out)
                     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
-                    dpg.set_y_scroll("trainer_status_window", 1000000)              
+                    dpg.set_y_scroll("trainer_status_window", 100000000)              
 
         def train_waveglow():
             os.chdir("waveglow") 
 
-            self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--checkpoint_path', self.waveglow_checkpoint_path,
-            '--input_training_file', self.project_name + '/' + 'training.csv', '--input_validation_file', self.project_name + '/' + 'validation.csv', '--input_wavs_dir', self.project_name + '/' + 'wavs'] , stdout=subprocess.PIPE)  
-                       
+            # Save parameters to waveglow json config
+            with open("config.json", "r") as f:
+                data = json.load(f)
+                data['train_config']['project_folder'] = self.project_folder
+                data['train_config']['fp16_run'] = False
+                data['train_config']['with_tensorboard'] = True                       
+                data['train_config']['batch_size'] = int(batch_size)
+                data['train_config']['learning_rate'] = float(learning_rate)
+                data['train_config']['output_directory'] = self.project_folder + '/' + "checkpoints"
+                data['train_config']['iters_per_checkpoint'] = int(iters_per_checkpoint)
+                data['data_config']['training_files'] = self.project_folder + '/' + "training.csv"
+                if self.waveglow_checkpoint_path:
+                    data['train_config']['checkpoint_path'] = self.waveglow_checkpoint_path
+            with open("config.json", 'w') as f:
+                json.dump(data, f, indent=4)
+
+            if multigpu:
+                self.train_process =  subprocess.Popen(['python', '-u', 'distributed.py', '--config', 'config.json'], stdout=subprocess.PIPE)  
+            else:
+                self.train_process =  subprocess.Popen(['python', '-u', 'train.py', '--config', 'config.json'], stdout=subprocess.PIPE)  
+
             os.chdir("../")
 
             while self.is_training_running:
@@ -137,7 +179,7 @@ class Trainer():
                 if out: 
                     print(out)
                     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\n" + out)
-                    dpg.set_y_scroll("trainer_status_window", 1000000)              
+                    dpg.set_y_scroll("trainer_status_window", 10000000000)              
 
         self.model_type = model_type
         if (model_type == "Train Hifi-Gan model"):
@@ -145,31 +187,30 @@ class Trainer():
             self.training_thread.start()
             print("HifiGan training started!")
             dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nHifi-Gan training started.")
-            dpg.set_y_scroll("trainer_status_window", 1000000)              
+            dpg.set_y_scroll("trainer_status_window", 10000000000)              
 
         if (model_type == "Train Tacotron2 model"):
             self.training_thread = threading.Thread(target=train_taco)
             self.training_thread.start()
             print("Tacotron2 training started!")
             dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTacotron2 training started.")
-            dpg.set_y_scroll("trainer_status_window", 1000000)              
+            dpg.set_y_scroll("trainer_status_window", 10000000000)              
 
         if (model_type == "Train Waveglow model"):
             self.training_thread = threading.Thread(target=train_waveglow)
             self.training_thread.start()
             print("Waveglow training started!")
             dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nWaveglow training started.")
-            dpg.set_y_scroll("trainer_status_window", 1000000)              
+            dpg.set_y_scroll("trainer_status_window", 10000000000)              
 
     def stop_training(self):
         print("\nStopping training...")
         if self.train_process:
             self.train_process.kill()
-            self.training_thread.stop()
             time.sleep(1)
             self.is_training_running = False
             dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining process stopped.")
-            dpg.set_y_scroll("trainer_status_window", 1000000)              
+            dpg.set_y_scroll("trainer_status_window", 10000000000)              
             print("Training stopped successfully.")
 
         # if self.model_type == "Train Hifi-Gan model":
@@ -274,7 +315,7 @@ class Inferer():
     def callback_redo_entry(self, sender, app_data, user_data):
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nRe-inferring entry with updated text.")
-        dpg.set_y_scroll("infer_status_window", 1000000)
+        dpg.set_y_scroll("infer_status_window", 10000000000)
         self.stop()
         text = dpg.get_value(user_data["tag_name"])
 
@@ -293,7 +334,7 @@ class Inferer():
     def callback_remove_entry(self, sender, app_data, user_data):
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nRemoving entry")
-        dpg.set_y_scroll("infer_status_window", 1000000)      
+        dpg.set_y_scroll("infer_status_window", 10000000000)      
         self.stop()    
         new_array = np.empty([0,2])
         rank = user_data["rank"]
@@ -398,7 +439,7 @@ class Inferer():
                 #bad file selected!
                 status = dpg.get_value("infer_status_text")
                 dpg.set_value("infer_status_text", status + "\nError: No splits from text file! Did you select correct file?")
-                dpg.set_y_scroll("infer_status_window", 1000000)
+                dpg.set_y_scroll("infer_status_window", 10000000000)
                 self.is_running = False
                 return None
 
@@ -408,7 +449,7 @@ class Inferer():
                     
                     status = dpg.get_value("infer_status_text")
                     dpg.set_value("infer_status_text", status + "\nInferring cut {} of {}.".format(i+1, p_count))
-                    dpg.set_y_scroll("infer_status_window", 1000000)
+                    dpg.set_y_scroll("infer_status_window", 10000000000)
 
                     if chosen_model == "Use Hifi-Gan model":
                         print("Using Hifi-Gan model")
@@ -471,7 +512,7 @@ def callback_infer_open_model_taco(sender, app_data):
     inferer.set_taco_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nTacotron2 model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000000)
+    dpg.set_y_scroll("infer_status_window", 10000000000)
 
 def callback_infer_open_model_hifigan(sender, app_data):
     d_path = app_data["selections"]
@@ -480,7 +521,7 @@ def callback_infer_open_model_hifigan(sender, app_data):
     inferer.set_hifigan_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nHifi-Gan Model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000000)    
+    dpg.set_y_scroll("infer_status_window", 10000000000)    
 
 def callback_infer_open_model_waveglow(sender, app_data):
     d_path = app_data["selections"]
@@ -489,7 +530,7 @@ def callback_infer_open_model_waveglow(sender, app_data):
     inferer.set_waveglow_model_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nWaveglow Model {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000000)  
+    dpg.set_y_scroll("infer_status_window", 10000000000)  
 
 def callback_infer_open_text_file(sender, app_data):
     d_path = app_data["selections"]
@@ -498,23 +539,26 @@ def callback_infer_open_text_file(sender, app_data):
     inferer.set_text_file_path(path)
     status = dpg.get_value("infer_status_text")
     dpg.set_value("infer_status_text", status + "\nText file {} selected.".format(path))
-    dpg.set_y_scroll("infer_status_window", 1000000)    
+    dpg.set_y_scroll("infer_status_window", 10000000000)    
 
 def callback_trainer_open_project(sender, app_data):
-    d_path = app_data["selections"]
-    key = list(d_path.keys())[0]
-    path = app_data["selections"][key]
-    trainer.set_project_name(path)
-    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\Project folder {} chosen.".format(path))
-    dpg.set_y_scroll("trainer_status_window", 1000000) 
+    path = app_data["file_path_name"]
+    # d_path = app_data["selections"]
+    # key = list(d_path.keys())[0]
+    # path = app_data["selections"][key]
+    trainer.set_project_folder(path)
+    print(path)
+    dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nProject folder {} chosen.".format(path))
+    dpg.set_y_scroll("trainer_status_window", 10000000000) 
 
 def callback_trainer_open_hifigan_checkpoint(sender, app_data):
-    d_path = app_data["selections"]
-    key = list(d_path.keys())[0]
-    path = app_data["selections"][key]
+    path = app_data["file_path_name"]
+    # d_path = app_data["selections"]
+    # key = list(d_path.keys())[0]
+    # path = app_data["selections"][key]
     trainer.set_hifigan_checkpoint_path(path)
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nHifi-Gan checkpoint {} chosen.".format(path))
-    dpg.set_y_scroll("trainer_status_window", 1000000)       
+    dpg.set_y_scroll("trainer_status_window", 10000000000)       
 
 def callback_trainer_open_taco_checkpoint(sender, app_data):
     d_path = app_data["selections"]
@@ -522,7 +566,7 @@ def callback_trainer_open_taco_checkpoint(sender, app_data):
     path = app_data["selections"][key]
     trainer.set_taco_checkpoint_path(path)
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTacotron2 checkpoint {} chosen.".format(path))
-    dpg.set_y_scroll("trainer_status_window", 1000000) 
+    dpg.set_y_scroll("trainer_status_window", 10000000000) 
 
 def callback_trainer_open_waveglow_checkpoint(sender, app_data):
     d_path = app_data["selections"]
@@ -530,31 +574,31 @@ def callback_trainer_open_waveglow_checkpoint(sender, app_data):
     path = app_data["selections"][key]
     trainer.set_waveglow_checkpoint_path(path)
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nWaveglow checkpoint {} chosen.".format(path))
-    dpg.set_y_scroll("trainer_status_window", 1000000) 
+    dpg.set_y_scroll("trainer_status_window", 10000000000) 
 
 def callback_trainer_start_training(sender, data):
     if trainer.is_running():
         return        
-    elif not trainer.get_project_name():
+    elif not trainer.get_project_folder():
         dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nError: No project folder selected!")
-        dpg.set_y_scroll("trainer_status_window", 1000000)         
+        dpg.set_y_scroll("trainer_status_window", 10000000000)         
         return
     elif not trainer.get_hifigan_checkpoint_path() and dpg.get_value("train_models_radio") == "Train Hifi-Gan model":
         dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining new Hifi-Gan model without checkpoint!")
-        dpg.set_y_scroll("trainer_status_window", 1000000)       
+        dpg.set_y_scroll("trainer_status_window", 10000000000)       
     elif not trainer.get_taco_checkpoint_path() and dpg.get_value("train_models_radio") == "Train Tacotron2 model":
         dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining new Tacotron2 model without checkpoint!")
-        dpg.set_y_scroll("trainer_status_window", 1000000)   
+        dpg.set_y_scroll("trainer_status_window", 10000000000)   
     elif not trainer.get_waveglow_checkpoint_path() and dpg.get_value("train_models_radio") == "Train Waveglow model":
         dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining new Waveglow model without checkpoint!")
-        dpg.set_y_scroll("trainer_status_window", 1000000)                           
+        dpg.set_y_scroll("trainer_status_window", 10000000000)                           
 
     batch_size = dpg.get_value("trainer_batch_size")
     iters_per_checkpoint = dpg.get_value("trainer_iters_per_checkpoint")    
     learning_rate = dpg.get_value("trainer_learning_rate_radio")
-    num_gpus = dpg.get_value("trainer_num_gpus")
+    multigpu = dpg.get_value("trainer_multigpu")
 
-    trainer.train_model(dpg.get_value("train_models_radio"), batch_size, iters_per_checkpoint, learning_rate, num_gpus)
+    trainer.train_model(dpg.get_value("train_models_radio"), batch_size, iters_per_checkpoint, learning_rate, multigpu)
 
 def callback_stop_training(sender, data):
     if trainer.is_running():
@@ -562,9 +606,10 @@ def callback_stop_training(sender, data):
 
 
 def callback_trainer_start_tensorboard(sender, data):
-    path = trainer.get_checkpoint_path()
+    path = trainer.get_project_folder()
     if not path:
         return
+    path = path + "/checkpoints/logs"
     import webbrowser as web
     web.open("http://localhost:6006")
     # out = "tensorboard --logdir '/model utilities/hifi-gan/attenborough.model/logs'"
@@ -572,13 +617,13 @@ def callback_trainer_start_tensorboard(sender, data):
     tp = subprocess.Popen(['tensorboard', '--logdir', path])
     trainer.set_tensorboard_process(tp)
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process started. Visit http://localhost:6006")
-    dpg.set_y_scroll("trainer_status_window", 1000000)     
+    dpg.set_y_scroll("trainer_status_window", 10000000000)     
 
 def callback_trainer_stop_tensorboard(sender, data):
     tp = trainer.get_tensorboard_process()
-    tp.stop()    
+    tp.kill()    
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process stopped.")
-    dpg.set_y_scroll("trainer_status_window", 1000000)       
+    dpg.set_y_scroll("trainer_status_window", 10000000000)       
 
 def callback_trainer_save_params(sender, data, user_data):
     if user_data == "tacotron2":
@@ -600,17 +645,17 @@ def callback_run_inference(sender, app_data, user_data):
     if not inferer.get_hifigan_model_path() and dpg.get_value("infer_model_radio") == "Use Hifi-Gan model":
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Hifi-Gan mode but no model chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000000)
+        dpg.set_y_scroll("infer_status_window", 100000000)
         return
     if not inferer.get_waveglow_model_path() and dpg.get_value("infer_model_radio") == "Use Waveglow model":
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Waveglow mode but no model chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000000)            
+        dpg.set_y_scroll("infer_status_window", 100000000)            
         return
     if not inferer.get_taco_model_path():
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: Tacotron2 model not chosen!")
-        dpg.set_y_scroll("infer_status_window", 1000000)
+        dpg.set_y_scroll("infer_status_window", 100000000)
         return
 
     if user_data == "single": 
@@ -619,7 +664,7 @@ def callback_run_inference(sender, app_data, user_data):
             print("running inference")            
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nRunning inference...")
-            dpg.set_y_scroll("infer_status_window", 1000000)
+            dpg.set_y_scroll("infer_status_window", 100000000)
 
             result = inferer.run_inference(t, "text_input", None)
             a = AudioSegment.from_file(result[0]) 
@@ -629,12 +674,12 @@ def callback_run_inference(sender, app_data, user_data):
             inferer.add_entry([entry])
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nInferred entry added to table.")
-            dpg.set_y_scroll("infer_status_window", 1000000)
+            dpg.set_y_scroll("infer_status_window", 100000000)
         else:
             print("Nothing to infer!")
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nError: no input to infer!")
-            dpg.set_y_scroll("infer_status_window", 1000000)
+            dpg.set_y_scroll("infer_status_window", 100000000)
             return
     
     elif user_data == "file":
@@ -643,7 +688,7 @@ def callback_run_inference(sender, app_data, user_data):
             if os.path.exists(inferer.get_text_file_path()):
                 status = dpg.get_value("infer_status_text")
                 dpg.set_value("infer_status_text", status + "\nRunning inference...")
-                dpg.set_y_scroll("infer_status_window", 1000000)
+                dpg.set_y_scroll("infer_status_window", 100000000)
                 with open(inferer.get_text_file_path(), 'r') as f:
                     r = f.readlines()
                     text_file = " ".join(r)
@@ -655,11 +700,11 @@ def callback_run_inference(sender, app_data, user_data):
                         inferer.add_entry([entry])
                 status = dpg.get_value("infer_status_text")
                 dpg.set_value("infer_status_text", status + "\nInferring text file completed.")
-                dpg.set_y_scroll("infer_status_window", 1000000)
+                dpg.set_y_scroll("infer_status_window", 100000000)
         else:
             status = dpg.get_value("infer_status_text")
             dpg.set_value("infer_status_text", status + "\nError: Text file not chosen!")
-            dpg.set_y_scroll("infer_status_window", 1000000)
+            dpg.set_y_scroll("infer_status_window", 100000000)
             return
 
 def callback_export_infer_table(sender, data):
@@ -680,11 +725,11 @@ def callback_export_infer_table(sender, data):
             #     f.write('\n')
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nTable exported to project name")
-        dpg.set_y_scroll("infer_status_window", 1000000)
+        dpg.set_y_scroll("infer_status_window", 100000000)
     else:
         status = dpg.get_value("infer_status_text")
         dpg.set_value("infer_status_text", status + "\nError: no table to export!")
-        dpg.set_y_scroll("infer_status_window", 1000000)
+        dpg.set_y_scroll("infer_status_window", 100000000)
 
 def callback_window_control(sender, data):
     if dpg.is_item_active("inference_tab"):
@@ -708,7 +753,7 @@ def callback_window_control(sender, data):
         dpg.configure_item("trainer_status_window", show=True)
         dpg.configure_item("trainer_hparams_window", show=True)
 
-with dpg.window(tag='mainwindow', label="Model Utilites"):
+with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800):
    
     with dpg.tab_bar(tag="tab_bar_1"):        
             
@@ -738,7 +783,7 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
             with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_waveglow_checkpoint, tag="trainer_open_waveglow_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
-            with dpg.window(tag="infer_status_window", show=True, width=600, height=170, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
+            with dpg.window(tag="infer_status_window", show=True, width=800, height=170, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
                 dpg.add_text("Status...", tag="infer_status_text")            
 
             with dpg.window(tag="infer_choose_model_window", show=True, width=525, height=170, pos=(5,35), menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):     
@@ -792,17 +837,17 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                         dpg.add_button(label="Choose Hifi-Gan checkpoint folder", tag="trainer_open_hifigan_checkpoint", callback=lambda: dpg.show_item("trainer_open_hifigan_checkpoint_dialog"))
                         dpg.add_button(label="Choose Waveglow checkpoint file", tag="trainer_open_waveglow_checkpoint", callback=lambda: dpg.show_item("trainer_open_waveglow_checkpoint_dialog"))
                     
-                dpg.add_spacer(height=3)               
+                dpg.add_spacer(height=5)               
                 with dpg.group(horizontal=True):
                     dpg.add_button(label="Start training", tag="trainer_start_training", callback=callback_trainer_start_training)
                     dpg.add_button(label="Stop training", tag="trainer_stop_training", callback=callback_stop_training)
                     dpg.add_button(label="Start tensorboard", tag="trainer_start_tensorboard", callback=callback_trainer_start_tensorboard)
                     dpg.add_button(label="Stop tensorboard", tag="stop_tensorboard", callback=callback_trainer_stop_tensorboard)
               
-            with dpg.window(tag="trainer_status_window", show=False, width=700, height=300, pos=(610,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):              
+            with dpg.window(tag="trainer_status_window", show=False, width=740, height=650, pos=(610,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):              
                dpg.add_text("Status...", tag="trainer_status_output")  
 
-            with dpg.window(tag="trainer_hparams_window", show=False, width=600, height=300, pos=(5,340), horizontal_scrollbar=False, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):              
+            with dpg.window(tag="trainer_hparams_window", show=False, width=600, height=345, pos=(5,340), horizontal_scrollbar=False, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=True, no_collapse=True, no_close=True):              
                 dpg.add_text("TRAINING PARAMETERS")
                 dpg.add_spacer(height=3) 
                 with dpg.group():
@@ -812,9 +857,10 @@ with dpg.window(tag='mainwindow', label="Model Utilites"):
                     dpg.add_spacer(height=3) 
                     with dpg.group(horizontal=True):
                         dpg.add_text("Choose learning rate:")
-                        dpg.add_radio_button(items=["1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="train_learning_rate_radio", default_value="1e-4", horizontal=False)
+                        dpg.add_radio_button(items=["1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="trainer_learning_rate_radio", default_value="1e-4", horizontal=False)
                     dpg.add_spacer(height=3) 
-                    dpg.add_input_text(width=50, tag="trainer_num_gpus", default_value="1", label="Number of GPU's (Linux only!)")
+                    dpg.add_checkbox(tag="trainer_multigpu", default_value=False, label="Multi-GPU (Linux only!)")
+                    dpg.add_checkbox(tag="trainer_warmstart", default_value=False, label="Warmstart training (no speaker embeddings)")
 
 
                 
@@ -849,6 +895,12 @@ with dpg.theme() as global_theme:
     #     dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
 
 dpg.bind_theme(global_theme)
+
+def exit_dpg(sender, data):
+    if trainer.is_running():
+        trainer.stop_training()
+
+dpg.set_exit_callback(exit_dpg)
 
 dpg.create_viewport(title="Deep Voice Model Utilities v1.0 by YouMeBangBang", width=1400, height=800)
 dpg.setup_dearpygui()
