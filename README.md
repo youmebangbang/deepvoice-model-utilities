@@ -38,7 +38,7 @@ anaconda
 
 pytorch
 
-pip install -r requirements.txt
+pip install -r requirements.txt --user
 
 # USAGE
 
