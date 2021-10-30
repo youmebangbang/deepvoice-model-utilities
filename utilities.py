@@ -1,9 +1,6 @@
-import dearpygui.dearpygui as dpg
 import os
 import shutil
-
-#Tacotron imports
-import os
+import dearpygui.dearpygui as dpg
 from dearpygui.dearpygui import get_value
 import sys
 import numpy as np
@@ -91,8 +88,8 @@ class Trainer():
                 data = json.load(f)
                 data['batch_size'] = int(batch_size)
                 data['learning_rate'] = float(learning_rate)                
-                if multigpu:
-                    data['num_gpus'] = 0
+                # if multigpu:
+                #     data['num_gpus'] = 0
             with open("config_v3.json", 'w') as f:
                 json.dump(data, f, indent=4)
 
@@ -120,7 +117,7 @@ class Trainer():
 
             run_command = []
             if multigpu:
-                run_command = ['python', '-u', 'distributed.py']          
+                run_command = ['python', '-u', '-m', 'multiproc', 'train.py']          
             else:
                 run_command = ['python', '-u', 'train.py']          
 
@@ -135,7 +132,6 @@ class Trainer():
             run_command.extend(['--log_directory', self.project_folder + '/checkpoints/logs' ])
             run_command.extend(['--output_directory', self.project_folder + '/checkpoints' ])
 
-            print(run_command)
             self.train_process =  subprocess.Popen(run_command, stdout=subprocess.PIPE)  
            
             os.chdir("../")
@@ -857,15 +853,15 @@ with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800
                 dpg.add_text("TRAINING PARAMETERS")
                 dpg.add_spacer(height=3) 
                 with dpg.group():
-                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="10", label="Batch size")
+                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="186", label="Batch size")
                     dpg.add_spacer(height=3) 
-                    dpg.add_input_text(width=100, tag="trainer_iters_per_checkpoint", default_value="5000", label="Iterations per checkpoint")
+                    dpg.add_input_text(width=100, tag="trainer_iters_per_checkpoint", default_value="500", label="Iterations per checkpoint")
                     dpg.add_spacer(height=3) 
                     with dpg.group(horizontal=True):
                         dpg.add_text("Choose learning rate:")
                         dpg.add_radio_button(items=["2e-4", "1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="trainer_learning_rate_radio", default_value="2e-4", horizontal=False)
                     dpg.add_spacer(height=3) 
-                    dpg.add_checkbox(tag="trainer_multigpu", default_value=False, label="Multi-GPU (Linux only!)")
+                    dpg.add_checkbox(tag="trainer_multigpu", default_value=False, label="Multi-GPU (linux only)")
                     dpg.add_checkbox(tag="trainer_warmstart", default_value=False, label="Warmstart training (no speaker embeddings)")
 
 
