@@ -1,3 +1,4 @@
+import psutil
 import os
 import shutil
 import dearpygui.dearpygui as dpg
@@ -32,6 +33,7 @@ class Trainer():
         self.is_training_running = False
         self.project_folder = False
         self.model_type = None
+        self.is_training_paused = False
 
         self.training_thread = None
 
@@ -75,6 +77,9 @@ class Trainer():
 
     def is_running(self):
         return self.is_training_running
+
+    def is_paused(self):
+        return self.is_training_paused
 
     def train_model(self, model_type, batch_size, iters_per_checkpoint, learning_rate, multigpu):
 
@@ -210,19 +215,24 @@ class Trainer():
             dpg.set_y_scroll("trainer_status_window", 1000000)              
             print("Training stopped successfully.")
 
-        # if self.model_type == "Train Hifi-Gan model":
-        #     print("\nStopping hifigan training... waiting for epoch to end...")
-        #     with open("training_status.txt", 'w') as f:
-        #         f.write("terminate")
-        #     if self.train_process:
-        #         self.train_process.kill()
-        #         time.sleep(1)
-        #         self.is_training_running = False
-        #         dpg.set_value("trainer_status_output", "training stopped.")
-        #         print("Training stopped successfully.")
-        #         if os.path.exists("hifi-gan/training_status.txt"):
-        #             f = open("hifi-gan/training_status.txt", 'w')
-        #             f.close()                   
+    def pause_training(self):
+        if self.is_training_paused:
+            # resume training
+            self.is_training_paused = False
+            psProcess = psutil.Process(pid=self.train_process.pid)
+            psProcess.resume()
+            dpg.configure_item("trainer_pause_training", label="Pause training")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining process resumed.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)                   
+        else:
+            self.is_training_paused = True
+            psProcess = psutil.Process(pid=self.train_process.pid)
+            psProcess.suspend()
+            dpg.configure_item("trainer_pause_training", label="Resume training")
+            dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTraining process paused.")
+            dpg.set_y_scroll("trainer_status_window", 1000000)              
+       
+
 
 class Inferer():
     def __init__(self):
@@ -626,15 +636,8 @@ def callback_trainer_stop_tensorboard(sender, data):
     dpg.set_value("trainer_status_output", dpg.get_value("trainer_status_output") + "\nTensorboard process stopped.")
     dpg.set_y_scroll("trainer_status_window", 1000000)       
 
-def callback_trainer_save_params(sender, data, user_data):
-    if user_data == "tacotron2":
-        with open("tacotron2/hparams.py", "r") as f:
-            values = f.read()
-            values = values.replace("")
-    elif user_data == "hifigan":
-        pass
-    elif user_data == "waveglow":
-        pass
+def callback_trainer_pause_training(sender, data):
+    trainer.pause_training()
 
 
 def callback_run_inference(sender, app_data, user_data):
@@ -844,7 +847,9 @@ with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800
                     dpg.add_button(label="Start training", tag="trainer_start_training", callback=callback_trainer_start_training)
                     dpg.add_button(label="Stop training", tag="trainer_stop_training", callback=callback_stop_training)
                     dpg.add_button(label="Start tensorboard", tag="trainer_start_tensorboard", callback=callback_trainer_start_tensorboard)
-                    dpg.add_button(label="Stop tensorboard", tag="stop_tensorboard", callback=callback_trainer_stop_tensorboard)
+                    dpg.add_button(label="Stop tensorboard", tag="trainer_stop_tensorboard", callback=callback_trainer_stop_tensorboard)
+                dpg.add_button(label="Pause training", tag="trainer_pause_training", callback=callback_trainer_pause_training)
+                
               
             with dpg.window(tag="trainer_status_window", show=False, width=740, height=650, pos=(610,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):              
                dpg.add_text("Status...", tag="trainer_status_output")  
