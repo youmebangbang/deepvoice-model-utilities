@@ -40,6 +40,8 @@ pytorch
 
 pip install -r requirements.txt --user
 
+Copy the tacotron2 and waveglow replace files into the installed directories
+
 # USAGE
 
 Video tutorial coming soon!
