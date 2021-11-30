@@ -120,11 +120,7 @@ class Trainer():
             os.chdir("tacotron2") 
             os.makedirs(self.project_folder + '/checkpoints/logs', exist_ok=True)
 
-            run_command = []
-            if multigpu:
-                run_command = ['python', '-u', '-m', 'multiproc', 'train.py']          
-            else:
-                run_command = ['python', '-u', 'train.py']          
+            run_command = ['python', '-u', 'train.py']          
 
             if self.taco_checkpoint_path:
                 run_command.extend(['--checkpoint_path', self.taco_checkpoint_path])
@@ -134,7 +130,7 @@ class Trainer():
             else:
                 run_command.extend(['--hparams', 'batch_size={}, iters_per_checkpoint={}, learning_rate={}, training_files={}, validation_files={}, project_path={}, distributed_run=False'.format(int(batch_size), int(iters_per_checkpoint), float(learning_rate), self.project_folder + '/' + 'training.csv', self.project_folder + '/' + 'validation.csv', self.project_folder)])
       
-            run_command.extend(['--log_directory', self.project_folder + '/checkpoints/logs' ])
+            run_command.extend(['--log_directory', 'logs' ])
             run_command.extend(['--output_directory', self.project_folder + '/checkpoints' ])
 
             self.train_process =  subprocess.Popen(run_command, stdout=subprocess.PIPE)  
@@ -621,6 +617,8 @@ def callback_trainer_start_tensorboard(sender, data):
     if not path:
         return
     path = path + "/checkpoints/logs"
+
+    print("OPENING TENSORBOARD AT PATH {}".format(path))
     import webbrowser as web
     web.open("http://localhost:6006")
     # out = "tensorboard --logdir '/model utilities/hifi-gan/attenborough.model/logs'"
@@ -858,13 +856,13 @@ with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800
                 dpg.add_text("TRAINING PARAMETERS")
                 dpg.add_spacer(height=3) 
                 with dpg.group():
-                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="186", label="Batch size")
+                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="116", label="Batch size")
                     dpg.add_spacer(height=3) 
                     dpg.add_input_text(width=100, tag="trainer_iters_per_checkpoint", default_value="500", label="Iterations per checkpoint")
                     dpg.add_spacer(height=3) 
                     with dpg.group(horizontal=True):
                         dpg.add_text("Choose learning rate:")
-                        dpg.add_radio_button(items=["2e-4", "1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="trainer_learning_rate_radio", default_value="2e-4", horizontal=False)
+                        dpg.add_radio_button(items=["2e-4", "1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="trainer_learning_rate_radio", default_value="1e-4", horizontal=False)
                     dpg.add_spacer(height=3) 
                     dpg.add_checkbox(tag="trainer_multigpu", default_value=False, label="Multi-GPU (linux only)")
                     dpg.add_checkbox(tag="trainer_warmstart", default_value=False, label="Warmstart training (no speaker embeddings)")
