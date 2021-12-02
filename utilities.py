@@ -856,13 +856,13 @@ with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800
                 dpg.add_text("TRAINING PARAMETERS")
                 dpg.add_spacer(height=3) 
                 with dpg.group():
-                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="116", label="Batch size")
+                    dpg.add_input_text(width=50, tag="trainer_batch_size", default_value="184", label="Batch size")
                     dpg.add_spacer(height=3) 
                     dpg.add_input_text(width=100, tag="trainer_iters_per_checkpoint", default_value="500", label="Iterations per checkpoint")
                     dpg.add_spacer(height=3) 
                     with dpg.group(horizontal=True):
                         dpg.add_text("Choose learning rate:")
-                        dpg.add_radio_button(items=["2e-4", "1e-4", "5e-4", "1e-5", "5e-5", "1e-6"], tag="trainer_learning_rate_radio", default_value="1e-4", horizontal=False)
+                        dpg.add_radio_button(items=["2e-4", "1e-4", "5e-5", "1e-5", "5e-6", "1e-6"], tag="trainer_learning_rate_radio", default_value="1e-4", horizontal=False)
                     dpg.add_spacer(height=3) 
                     dpg.add_checkbox(tag="trainer_multigpu", default_value=False, label="Multi-GPU (linux only)")
                     dpg.add_checkbox(tag="trainer_warmstart", default_value=False, label="Warmstart training (no speaker embeddings)")
