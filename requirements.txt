@@ -1,7 +1,7 @@
 dearpygui
 numpy
 librosa
-tensorboard
+tensorboardx
 soundfile
 matplotlib
 tensorflow
