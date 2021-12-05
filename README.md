@@ -8,6 +8,8 @@ Train Nvidia Tacotron2, Waveglow, and Hifi-Gan models.
 
 # INSTALLATION
 
+It is highly recommend to install anaconda and create a virtual environment to work from. 
+
 git clone this repository
 
 cd deepvoice-model-utilities
@@ -34,9 +36,8 @@ cd ..
 
 git clone https://github.com/jik876/hifi-gan.git
 
-anaconda
-
-pytorch
+Install latest pip version of pytorch (CUDA binaries are inlcuded!):
+https://pytorch.org/get-started/locally/
 
 pip install -r requirements.txt --user
 
