@@ -12,6 +12,8 @@ It is highly recommend to install anaconda and create a virtual environment to w
 
 git clone this repository
 
+https://github.com/youmebangbang/deepvoice-model-utilities.git
+
 cd deepvoice-model-utilities
 
 git clone https://github.com/NVIDIA/tacotron2.git
