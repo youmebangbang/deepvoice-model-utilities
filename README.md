@@ -45,7 +45,7 @@ Copy the tacotron2 and waveglow replace files into the installed directories
 
 # FORMATTING OF TRAINING AND VALIDATION .CSV FILES
 
-Entries are deliminated with the | character. No quotes around text.
+Entries are deliminated with the | character. No quotes around text. Split at least 50 entries from your training.csv into your validation.csv
 
 For Tacotron 2:
 
