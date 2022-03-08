@@ -45,9 +45,24 @@ Copy the tacotron2 and waveglow replace files into the installed directories
 
 # FORMATTING OF TRAINING AND VALIDATION .CSV FILES
 
+Entries are deliminated with the | character. No quotes around text.
+
+For Tacotron 2:
+
+[wave file name with extension] | [text of audio]
+
+example:  120.wav|Here is the text of my audio. It is some good text.
+
+For Waveglow:
+
+[wave file name with extension]
+
+example:  120.wav
+
 For Hifi-GAN:
+
 [wave file name without extension] | [text of audio]
 
-
+example:  120|Here is the text of my audio. It is some good text.
 
 
