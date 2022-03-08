@@ -43,6 +43,11 @@ pip install -r requirements.txt --user
 
 Copy the tacotron2 and waveglow replace files into the installed directories
 
-# USAGE
+# FORMATTING OF TRAINING AND VALIDATION .CSV FILES
 
-Video tutorial coming soon!
+For Hifi-GAN:
+[wave file name without extension] | [text of audio]
+
+
+
+
