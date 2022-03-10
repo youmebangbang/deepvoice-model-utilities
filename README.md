@@ -67,4 +67,11 @@ For Hifi-GAN:
 
 example:  120|Here is the text of my audio. It is some good text.
 
+# LEARNING RATES FOR MODELS
+(subject to change based on current knowledge)
 
+For Tacotron 2: Start at 1e-4 until model collapses (NaN loss), then switch to 1e-5 for remainder of training. If model collapses with 1e-5, revert back to the last good checkpoint and continue training.
+
+For Waveglow: Use 1e-4 for entire training.
+
+For Hifi-GAN: Use 2e-4 for entire training.
