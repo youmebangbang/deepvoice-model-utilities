@@ -1,5 +1,7 @@
 # Utilities for training and inferring deep voice models.
 
+Video Tutorial at https://www.youtube.com/watch?v=MlZ6QfkhRF0
+
 Infer a text file into multiple phrases that can be redone, edited, or removed.
 
 Train Nvidia Tacotron2, Waveglow, and Hifi-Gan models.
