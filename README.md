@@ -42,6 +42,7 @@ git clone https://github.com/jik876/hifi-gan.git
 
 Install latest pip version of pytorch (CUDA binaries are inlcuded!):
 https://pytorch.org/get-started/locally/
+Install the conda version if pip gives you errors about libcublas.so
 
 pip install -r requirements.txt --user
 
