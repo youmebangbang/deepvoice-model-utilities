@@ -12,5 +12,3 @@ scipy
 Unidecode
 pillow
 psutil
-shutil
-
