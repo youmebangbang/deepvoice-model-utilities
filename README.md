@@ -45,6 +45,8 @@ https://pytorch.org/get-started/locally/
 
 pip install -r requirements.txt --user
 
+*If you cannot build simpleaudio make sure that you have gcc installed: sudo apt-get update , sudo apt-get install build-essentials
+
 Copy the tacotron2 and waveglow replace files into the installed directories
 
 # FORMATTING OF TRAINING AND VALIDATION .CSV FILES
