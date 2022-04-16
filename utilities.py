@@ -883,7 +883,7 @@ dpg.bind_item_handler_registry("inference_tab", "window_handler")
 with dpg.font_registry():
     default_font = dpg.add_font("CheyenneSans-Light.otf", 17)
     font2 = dpg.add_font("PublicSans-Regular.otf", 18)
-    font3 = dpg.add_font("VarelaRound-Regular.ttf", 17)
+    #font3 = dpg.add_font("VarelaRound-Regular.ttf", 17)
     
 
 dpg.bind_font(font2)
