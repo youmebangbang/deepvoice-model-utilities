@@ -120,8 +120,11 @@ class Trainer():
             os.chdir("tacotron2") 
             os.makedirs(self.project_folder + '/checkpoints/logs', exist_ok=True)
 
-            run_command = ['python', '-u', 'train.py']          
-
+            if multigpu:
+                run_command = ['python', '-u', 'multiproc.py']
+            else:
+                run_command = ['python', '-u', 'train.py']         
+                
             if self.taco_checkpoint_path:
                 run_command.extend(['--checkpoint_path', self.taco_checkpoint_path])
 
@@ -880,7 +883,7 @@ dpg.bind_item_handler_registry("inference_tab", "window_handler")
 with dpg.font_registry():
     default_font = dpg.add_font("CheyenneSans-Light.otf", 17)
     font2 = dpg.add_font("PublicSans-Regular.otf", 18)
-    # font3 = dpg.add_font("VarelaRound-Regular.ttf", 17)
+    font3 = dpg.add_font("VarelaRound-Regular.ttf", 17)
     
 
 dpg.bind_font(font2)
