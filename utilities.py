@@ -765,28 +765,28 @@ with dpg.window(tag='mainwindow', label="Model Utilites", width=1400, height=800
             
         with dpg.tab(tag="inference_tab", label=" Run Inference "):
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_taco, tag="infer_open_model_taco"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_taco, tag="infer_open_model_taco"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_hifigan, tag="infer_open_model_hifigan"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_hifigan, tag="infer_open_model_hifigan"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_waveglow, tag="infer_open_model_waveglow"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_infer_open_model_waveglow, tag="infer_open_model_waveglow"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_infer_open_text_file, tag="open_text_file"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_infer_open_text_file, tag="open_text_file"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_trainer_open_project, tag="trainer_open_project_dialog"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=True, show=False, callback=callback_trainer_open_project, tag="trainer_open_project_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))                
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=True, show=False, callback=callback_trainer_open_hifigan_checkpoint, tag="trainer_open_hifigan_checkpoint_dialog"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=True, show=False, callback=callback_trainer_open_hifigan_checkpoint, tag="trainer_open_hifigan_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))
 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_taco_checkpoint, tag="trainer_open_taco_checkpoint_dialog"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_trainer_open_taco_checkpoint, tag="trainer_open_taco_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))  
                 
-            with dpg.file_dialog(modal=True, width=800, directory_selector=False, show=False, callback=callback_trainer_open_waveglow_checkpoint, tag="trainer_open_waveglow_checkpoint_dialog"):
+            with dpg.file_dialog(modal=True, height=400, width=800, directory_selector=False, show=False, callback=callback_trainer_open_waveglow_checkpoint, tag="trainer_open_waveglow_checkpoint_dialog"):
                 dpg.add_file_extension(".*", color=(255, 255, 255, 255))   
 
             with dpg.window(tag="infer_status_window", show=True, width=800, height=170, pos=(535,35), horizontal_scrollbar=True, menubar=False, no_resize=True, no_title_bar=True, no_move=True, no_scrollbar=False, no_collapse=True, no_close=True):
