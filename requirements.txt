@@ -12,3 +12,4 @@ scipy
 Unidecode
 pillow
 psutil
+torch
